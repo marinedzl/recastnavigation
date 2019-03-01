@@ -71,6 +71,7 @@ struct BuildSettings
 
 class InputGeom
 {
+	std::string m_fileName;
 	rcChunkyTriMesh* m_chunkyMesh;
 	rcMeshLoaderObj* m_mesh;
 	float m_meshBMin[3], m_meshBMax[3];
@@ -101,6 +102,8 @@ class InputGeom
 public:
 	InputGeom();
 	~InputGeom();
+
+	const std::string& GetFileName() const { return m_fileName; }
 	
 	
 	bool load(class rcContext* ctx, const std::string& filepath);

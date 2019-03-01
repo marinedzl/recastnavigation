@@ -921,14 +921,18 @@ void Sample_TempObstacles::handleSettings()
 
 	if (imguiButton("Save"))
 	{
-		saveAll("all_tiles_tilecache.bin");
+		char path[MAX_PATH];
+		snprintf(path, MAX_PATH, "Meshes/%s.cache", m_geom->GetFileName().c_str());
+		saveAll(path);
 	}
 
 	if (imguiButton("Load"))
 	{
 		dtFreeNavMesh(m_navMesh);
 		dtFreeTileCache(m_tileCache);
-		loadAll("all_tiles_tilecache.bin");
+		char path[MAX_PATH];
+		snprintf(path, MAX_PATH, "Meshes/%s.cache", m_geom->GetFileName().c_str());
+		loadAll(path);
 		m_navQuery->init(m_navMesh, 2048);
 	}
 

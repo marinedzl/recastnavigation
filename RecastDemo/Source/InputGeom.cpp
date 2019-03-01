@@ -303,6 +303,12 @@ bool InputGeom::load(rcContext* ctx, const std::string& filepath)
 	if (extensionPos == std::string::npos)
 		return false;
 
+	size_t fileNamePos = filepath.find_last_of('/');
+	if (fileNamePos == std::string::npos)
+		return false;
+
+	m_fileName = filepath.substr(fileNamePos + 1, extensionPos - fileNamePos - 1);
+
 	std::string extension = filepath.substr(extensionPos);
 	std::transform(extension.begin(), extension.end(), extension.begin(), tolower);
 
