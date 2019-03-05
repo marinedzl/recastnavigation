@@ -80,6 +80,7 @@ public:
 	void renderCachedTileOverlay(const int tx, const int ty, double* proj, double* model, int* view);
 
 	void addTempObstacle(const float* pos);
+	void addTempObstacleConvex(const float* verts, const int nverts, const float hmin, const float hmax);
 	void removeTempObstacle(const float* sp, const float* sq);
 	void clearAllTempObstacles();
 

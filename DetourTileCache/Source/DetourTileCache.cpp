@@ -459,6 +459,45 @@ dtStatus dtTileCache::addBoxObstacle(const float* center, const float* halfExten
 	return DT_SUCCESS;
 }
 
+dtStatus dtTileCache::addConvexObstacle(const float* verts, const int nverts, const float hmin, const float hmax, dtObstacleRef* result)
+{
+	if (m_nreqs >= MAX_REQUESTS)
+		return DT_FAILURE | DT_BUFFER_TOO_SMALL;
+
+	dtTileCacheObstacle* ob = 0;
+	if (m_nextFreeObstacle)
+	{
+		ob = m_nextFreeObstacle;
+		m_nextFreeObstacle = ob->next;
+		ob->next = 0;
+	}
+	if (!ob)
+		return DT_FAILURE | DT_OUT_OF_MEMORY;
+
+	if (nverts <= 0 || nverts > DT_OBSTACLE_CONVEX_MAX_PT * 3)
+		return DT_FAILURE | DT_OUT_OF_MEMORY;
+
+	unsigned short salt = ob->salt;
+	memset(ob, 0, sizeof(dtTileCacheObstacle));
+	ob->salt = salt;
+	ob->state = DT_OBSTACLE_PROCESSING;
+	ob->type = DT_OBSTACLE_CONVEX;
+	memcpy(ob->convex.verts, verts, sizeof(float) * 3 * nverts);
+	ob->convex.nverts = nverts;
+	ob->convex.hmin = hmin;
+	ob->convex.hmax = hmax;
+
+	ObstacleRequest* req = &m_reqs[m_nreqs++];
+	memset(req, 0, sizeof(ObstacleRequest));
+	req->action = REQUEST_ADD;
+	req->ref = getObstacleRef(ob);
+
+	if (result)
+		*result = req->ref;
+
+	return DT_SUCCESS;
+}
+
 dtStatus dtTileCache::removeObstacle(const dtObstacleRef ref)
 {
 	if (!ref)
@@ -696,6 +735,11 @@ dtStatus dtTileCache::buildNavMeshTile(const dtCompressedTileRef ref, dtNavMesh*
 				dtMarkBoxArea(*bc.layer, tile->header->bmin, m_params.cs, m_params.ch,
 					ob->orientedBox.center, ob->orientedBox.halfExtents, ob->orientedBox.rotAux, 0);
 			}
+			else if (ob->type == DT_OBSTACLE_CONVEX)
+			{
+				dtMarkConvexArea(*bc.layer, tile->header->bmin, m_params.cs, m_params.ch,
+					ob->convex.verts, ob->convex.nverts, ob->convex.hmin, ob->convex.hmax, 0);
+			}
 		}
 	}
 	
@@ -816,5 +860,19 @@ void dtTileCache::getObstacleBounds(const struct dtTileCacheObstacle* ob, float*
 		bmax[1] = orientedBox.center[1] + orientedBox.halfExtents[1];
 		bmin[2] = orientedBox.center[2] - maxr;
 		bmax[2] = orientedBox.center[2] + maxr;
+	}
+	else if (ob->type == DT_OBSTACLE_CONVEX)
+	{
+		const dtObstacleConvex &convex = ob->convex;
+
+		dtVcopy(bmin, convex.verts);
+		dtVcopy(bmax, convex.verts);
+		for (int i = 1; i < convex.nverts; ++i)
+		{
+			dtVmin(bmin, &convex.verts[i * 3]);
+			dtVmax(bmax, &convex.verts[i * 3]);
+		}
+		bmin[1] = convex.hmin;
+		bmax[1] = convex.hmax;
 	}
 }

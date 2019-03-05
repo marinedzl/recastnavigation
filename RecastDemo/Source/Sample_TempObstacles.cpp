@@ -44,6 +44,7 @@
 #include "NavMeshTesterTool.h"
 #include "OffMeshConnectionTool.h"
 #include "ConvexVolumeTool.h"
+#include "ConvexObstacleTool.h"
 #include "CrowdTool.h"
 #include "RecastAlloc.h"
 #include "RecastAssert.h"
@@ -643,10 +644,63 @@ dtObstacleRef hitTestObstacle(const dtTileCache* tc, const float* sp, const floa
 	}
 	return tc->getObstacleRef(obmin);
 }
+
+void drawConvexObstacle(struct duDebugDraw* dd, const dtObstacleConvex* vol, unsigned int _col)
+{
+	unsigned int col = 0;
+
+	col = _col;
+	dd->begin(DU_DRAW_TRIS);
+	for (int j = 0, k = vol->nverts - 1; j < vol->nverts; k = j++)
+	{
+		const float* va = &vol->verts[k * 3];
+		const float* vb = &vol->verts[j * 3];
+
+		dd->vertex(vol->verts[0], vol->hmax, vol->verts[2], col);
+		dd->vertex(vb[0], vol->hmax, vb[2], col);
+		dd->vertex(va[0], vol->hmax, va[2], col);
+
+		dd->vertex(va[0], vol->hmin, va[2], duDarkenCol(col));
+		dd->vertex(va[0], vol->hmax, va[2], col);
+		dd->vertex(vb[0], vol->hmax, vb[2], col);
+
+		dd->vertex(va[0], vol->hmin, va[2], duDarkenCol(col));
+		dd->vertex(vb[0], vol->hmax, vb[2], col);
+		dd->vertex(vb[0], vol->hmin, vb[2], duDarkenCol(col));
+	}
+	dd->end();
+
+	col = duDarkenCol(_col);
+	dd->begin(DU_DRAW_LINES, 2.0f);
+	for (int j = 0, k = vol->nverts - 1; j < vol->nverts; k = j++)
+	{
+		const float* va = &vol->verts[k * 3];
+		const float* vb = &vol->verts[j * 3];
+		dd->vertex(va[0], vol->hmin, va[2], duDarkenCol(col));
+		dd->vertex(vb[0], vol->hmin, vb[2], duDarkenCol(col));
+		dd->vertex(va[0], vol->hmax, va[2], col);
+		dd->vertex(vb[0], vol->hmax, vb[2], col);
+		dd->vertex(va[0], vol->hmin, va[2], duDarkenCol(col));
+		dd->vertex(va[0], vol->hmax, va[2], col);
+	}
+	dd->end();
+
+	col = duDarkenCol(_col);
+	dd->begin(DU_DRAW_POINTS, 3.0f);
+	for (int j = 0; j < vol->nverts; ++j)
+	{
+		dd->vertex(vol->verts[j * 3 + 0], vol->verts[j * 3 + 1] + 0.1f, vol->verts[j * 3 + 2], col);
+		dd->vertex(vol->verts[j * 3 + 0], vol->hmin, vol->verts[j * 3 + 2], col);
+		dd->vertex(vol->verts[j * 3 + 0], vol->hmax, vol->verts[j * 3 + 2], col);
+	}
+	dd->end();
+}
 	
 void drawObstacles(duDebugDraw* dd, const dtTileCache* tc)
 {
 	// Draw obstacles
+	dd->depthMask(false);
+
 	for (int i = 0; i < tc->getObstacleCount(); ++i)
 	{
 		const dtTileCacheObstacle* ob = tc->getObstacle(i);
@@ -658,17 +712,23 @@ void drawObstacles(duDebugDraw* dd, const dtTileCache* tc)
 		if (ob->state == DT_OBSTACLE_PROCESSING)
 			col = duRGBA(255,255,0,128);
 		else if (ob->state == DT_OBSTACLE_PROCESSED)
-			col = duRGBA(255,192,0,192);
+			col = duRGBA(255,192,0,128);
 		else if (ob->state == DT_OBSTACLE_REMOVING)
 			col = duRGBA(220,0,0,128);
 
-		duDebugDrawCylinder(dd, bmin[0],bmin[1],bmin[2], bmax[0],bmax[1],bmax[2], col);
-		duDebugDrawCylinderWire(dd, bmin[0],bmin[1],bmin[2], bmax[0],bmax[1],bmax[2], duDarkenCol(col), 2);
+		if (ob->type == DT_OBSTACLE_CONVEX)
+		{
+			drawConvexObstacle(dd, &ob->convex, col);
+		}
+		else
+		{
+			duDebugDrawCylinder(dd, bmin[0], bmin[1], bmin[2], bmax[0], bmax[1], bmax[2], col);
+			duDebugDrawCylinderWire(dd, bmin[0], bmin[1], bmin[2], bmax[0], bmax[1], bmax[2], duDarkenCol(col), 2);
+		}
 	}
+
+	dd->depthMask(true);
 }
-
-
-
 
 class TempObstacleHilightTool : public SampleTool
 {
@@ -842,7 +902,7 @@ Sample_TempObstacles::Sample_TempObstacles() :
 	m_tcomp = new FastLZCompressor;
 	m_tmproc = new MeshProcess;
 	
-	setTool(new TempObstacleCreateTool);
+	setTool(new ConvexObstacleTool);
 }
 
 Sample_TempObstacles::~Sample_TempObstacles()
@@ -956,7 +1016,11 @@ void Sample_TempObstacles::handleTools()
 	}
 	if (imguiCheck("Create Temp Obstacles", type == TOOL_TEMP_OBSTACLE))
 	{
-		setTool(new TempObstacleCreateTool);
+		setTool(new TempObstacleCreateTool());
+	}
+	if (imguiCheck("Create Convex Obstacles", type == TOOL_CONVEX_OBSTACLE))
+	{
+		setTool(new ConvexObstacleTool);
 	}
 	if (imguiCheck("Create Off-Mesh Links", type == TOOL_OFFMESH_CONNECTION))
 	{
@@ -1173,6 +1237,13 @@ void Sample_TempObstacles::addTempObstacle(const float* pos)
 	dtVcopy(p, pos);
 	p[1] -= 0.5f;
 	m_tileCache->addObstacle(p, 1.0f, 2.0f, 0);
+}
+
+void Sample_TempObstacles::addTempObstacleConvex(const float* verts, const int nverts, const float hmin, const float hmax)
+{
+	if (!m_tileCache)
+		return;
+	m_tileCache->addConvexObstacle(verts, nverts, hmin, hmax, 0);
 }
 
 void Sample_TempObstacles::removeTempObstacle(const float* sp, const float* sq)

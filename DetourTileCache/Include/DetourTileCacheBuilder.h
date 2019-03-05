@@ -133,6 +133,9 @@ dtStatus dtMarkBoxArea(dtTileCacheLayer& layer, const float* orig, const float c
 dtStatus dtMarkBoxArea(dtTileCacheLayer& layer, const float* orig, const float cs, const float ch,
 					   const float* center, const float* halfExtents, const float* rotAux, const unsigned char areaId);
 
+dtStatus dtMarkConvexArea(dtTileCacheLayer& layer, const float* orig, const float cs, const float ch,
+	const float* verts, const int nverts, const float hmin, const float hmax, const unsigned char areaId);
+
 dtStatus dtBuildTileCacheRegions(dtTileCacheAlloc* alloc,
 								 dtTileCacheLayer& layer,
 								 const int walkableClimb);

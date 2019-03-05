@@ -40,6 +40,12 @@ enum ObstacleType
 	DT_OBSTACLE_CYLINDER,
 	DT_OBSTACLE_BOX, // AABB
 	DT_OBSTACLE_ORIENTED_BOX, // OBB
+	DT_OBSTACLE_CONVEX,
+};
+
+enum
+{
+	DT_OBSTACLE_CONVEX_MAX_PT = 10,
 };
 
 struct dtObstacleCylinder
@@ -62,6 +68,14 @@ struct dtObstacleOrientedBox
 	float rotAux[ 2 ]; //{ cos(0.5f*angle)*sin(-0.5f*angle); cos(0.5f*angle)*cos(0.5f*angle) - 0.5 }
 };
 
+struct dtObstacleConvex
+{
+	float verts[DT_OBSTACLE_CONVEX_MAX_PT * 3];
+	int nverts;
+	float hmin;
+	float hmax;
+};
+
 static const int DT_MAX_TOUCHED_TILES = 8;
 struct dtTileCacheObstacle
 {
@@ -70,6 +84,7 @@ struct dtTileCacheObstacle
 		dtObstacleCylinder cylinder;
 		dtObstacleBox box;
 		dtObstacleOrientedBox orientedBox;
+		dtObstacleConvex convex;
 	};
 
 	dtCompressedTileRef touched[DT_MAX_TOUCHED_TILES];
@@ -147,6 +162,9 @@ public:
 
 	// Box obstacle: can be rotated in Y.
 	dtStatus addBoxObstacle(const float* center, const float* halfExtents, const float yRadians, dtObstacleRef* result);
+
+	// Convex obstacle
+	dtStatus addConvexObstacle(const float* verts, const int nverts, const float hmin, const float hmax, dtObstacleRef* result);
 	
 	dtStatus removeObstacle(const dtObstacleRef ref);
 	

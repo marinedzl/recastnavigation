@@ -52,4 +52,9 @@ public:
 	virtual void handleRenderOverlay(double* proj, double* model, int* view);
 };
 
+// Calculates convex hull on xz-plane of points on 'pts',
+// stores the indices of the resulting hull in 'out' and
+// returns number of points on hull.
+int convexhull(const float* pts, int npts, int* out);
+
 #endif // CONVEXVOLUMETOOL_H
