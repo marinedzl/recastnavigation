@@ -1687,6 +1687,7 @@ bool Sample_TempObstacles::loadObst(const char* path)
 	char* srcEnd = buf + bufSize;
 	char row[512];
 	float verts[DT_OBSTACLE_CONVEX_MAX_PT * 3];
+	char name[MAX_PATH];
 	while (src < srcEnd)
 	{
 		row[0] = '\0';
@@ -1697,7 +1698,7 @@ bool Sample_TempObstacles::loadObst(const char* path)
 			int nverts = 0;
 			float hmin = 0;
 			float hmax = 0;
-			sscanf(row + 1, "%d %d %f %f", &area, &nverts, &hmin, &hmax);
+			sscanf(row + 1, "%s %d %d %f %f", name, &area, &nverts, &hmin, &hmax);
 			for (int i = 0; i < nverts; ++i)
 			{
 				row[0] = '\0';
