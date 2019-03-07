@@ -43,11 +43,6 @@ enum ObstacleType
 	DT_OBSTACLE_CONVEX,
 };
 
-enum
-{
-	DT_OBSTACLE_CONVEX_MAX_PT = 10,
-};
-
 struct dtObstacleCylinder
 {
 	float pos[ 3 ];
@@ -70,7 +65,7 @@ struct dtObstacleOrientedBox
 
 struct dtObstacleConvex
 {
-	float verts[DT_OBSTACLE_CONVEX_MAX_PT * 3];
+	float* verts;
 	int nverts;
 	float hmin;
 	float hmax;
@@ -94,8 +89,10 @@ struct dtTileCacheObstacle
 	unsigned char state;
 	unsigned char ntouched;
 	unsigned char npending;
+	float* convexVerts;
 	dtTileCacheObstacle* next;
 };
+void dtResetTileCacheObstacle(dtTileCacheObstacle* ob);
 
 struct dtTileCacheParams
 {

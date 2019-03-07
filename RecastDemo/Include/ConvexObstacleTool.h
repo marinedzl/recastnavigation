@@ -10,7 +10,7 @@ class ConvexObstacleTool : public SampleTool
 	float m_boxHeight;
 	float m_boxDescent;
 	
-	static const int MAX_PTS = DT_OBSTACLE_CONVEX_MAX_PT;
+	static const int MAX_PTS = 12;
 	float m_pts[MAX_PTS*3];
 	int m_npts;
 	int m_hull[MAX_PTS];

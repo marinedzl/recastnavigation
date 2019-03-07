@@ -22,6 +22,7 @@
 #include <string.h>
 #include <float.h>
 #include <new>
+#include <vector>
 #include "SDL.h"
 #include "SDL_opengl.h"
 #ifdef __APPLE__
@@ -1686,10 +1687,11 @@ bool Sample_TempObstacles::loadObst(const char* path)
 	char* src = buf;
 	char* srcEnd = buf + bufSize;
 	char row[512];
-	float verts[DT_OBSTACLE_CONVEX_MAX_PT * 3];
+	float point[3];
 	char obstName[MAX_PATH];
 	char cmd[32];
 	float param;
+	std::vector<float> verts;
 	while (src < srcEnd)
 	{
 		row[0] = '\0';
@@ -1712,15 +1714,17 @@ bool Sample_TempObstacles::loadObst(const char* path)
 			float hmin = 0;
 			float hmax = 0;
 			sscanf(row, "%s %s %d %d %f %f", cmd, obstName, &area, &nverts, &hmin, &hmax);
+			verts.clear();
 			for (int i = 0; i < nverts; ++i)
 			{
 				row[0] = '\0';
 				src = parseRow(src, srcEnd, row, sizeof(row) / sizeof(char));
-				if (i < DT_OBSTACLE_CONVEX_MAX_PT)
-					sscanf(row, "%f %f %f", &verts[i * 3 + 0], &verts[i * 3 + 1], &verts[i * 3 + 2]);
+				sscanf(row, "%f %f %f", &point[0], &point[1], &point[2]);
+				verts.push_back(point[0]);
+				verts.push_back(point[1]);
+				verts.push_back(point[2]);
 			}
-			nverts = dtMin(nverts, (int)DT_OBSTACLE_CONVEX_MAX_PT);
-			m_tileCache->addConvexObstacle(verts, nverts, hmin, hmax, 0);
+			m_tileCache->addConvexObstacle(&verts[0], nverts, hmin, hmax, 0);
 		}
 	}
 

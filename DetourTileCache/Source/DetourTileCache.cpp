@@ -23,6 +23,15 @@ void dtFreeTileCache(dtTileCache* tc)
 	dtFree(tc);
 }
 
+void dtResetTileCacheObstacle(dtTileCacheObstacle* ob)
+{
+	if (ob->convexVerts)
+		dtFree(ob->convexVerts);
+	unsigned short salt = ob->salt;
+	memset(ob, 0, sizeof(dtTileCacheObstacle));
+	ob->salt = salt;
+}
+
 static bool contains(const dtCompressedTileRef* a, const int n, const dtCompressedTileRef v)
 {
 	for (int i = 0; i < n; ++i)
@@ -89,6 +98,11 @@ dtTileCache::~dtTileCache()
 			dtFree(m_tiles[i].data);
 			m_tiles[i].data = 0;
 		}
+	}
+	if (m_obstacles)
+	{
+		for (int i = 0; i < m_params.maxObstacles; ++i)
+			dtFree(m_obstacles[i].convexVerts);
 	}
 	dtFree(m_obstacles);
 	m_obstacles = 0;
@@ -401,9 +415,8 @@ dtStatus dtTileCache::addBoxObstacle(const float* bmin, const float* bmax, dtObs
 	if (!ob)
 		return DT_FAILURE | DT_OUT_OF_MEMORY;
 	
-	unsigned short salt = ob->salt;
-	memset(ob, 0, sizeof(dtTileCacheObstacle));
-	ob->salt = salt;
+	dtResetTileCacheObstacle(ob);
+
 	ob->state = DT_OBSTACLE_PROCESSING;
 	ob->type = DT_OBSTACLE_BOX;
 	dtVcopy(ob->box.bmin, bmin);
@@ -435,9 +448,8 @@ dtStatus dtTileCache::addBoxObstacle(const float* center, const float* halfExten
 	if (!ob)
 		return DT_FAILURE | DT_OUT_OF_MEMORY;
 
-	unsigned short salt = ob->salt;
-	memset(ob, 0, sizeof(dtTileCacheObstacle));
-	ob->salt = salt;
+	dtResetTileCacheObstacle(ob);
+
 	ob->state = DT_OBSTACLE_PROCESSING;
 	ob->type = DT_OBSTACLE_ORIENTED_BOX;
 	dtVcopy(ob->orientedBox.center, center);
@@ -474,14 +486,15 @@ dtStatus dtTileCache::addConvexObstacle(const float* verts, const int nverts, co
 	if (!ob)
 		return DT_FAILURE | DT_OUT_OF_MEMORY;
 
-	if (nverts <= 0 || nverts > DT_OBSTACLE_CONVEX_MAX_PT * 3)
+	dtResetTileCacheObstacle(ob);
+
+	ob->convexVerts = (float*)dtAlloc(sizeof(float) * 3 * nverts, DT_ALLOC_PERM);
+	if (!ob->convexVerts)
 		return DT_FAILURE | DT_OUT_OF_MEMORY;
 
-	unsigned short salt = ob->salt;
-	memset(ob, 0, sizeof(dtTileCacheObstacle));
-	ob->salt = salt;
 	ob->state = DT_OBSTACLE_PROCESSING;
 	ob->type = DT_OBSTACLE_CONVEX;
+	ob->convex.verts = ob->convexVerts;
 	memcpy(ob->convex.verts, verts, sizeof(float) * 3 * nverts);
 	ob->convex.nverts = nverts;
 	ob->convex.hmin = hmin;
