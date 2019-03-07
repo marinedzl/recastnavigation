@@ -1687,18 +1687,31 @@ bool Sample_TempObstacles::loadObst(const char* path)
 	char* srcEnd = buf + bufSize;
 	char row[512];
 	float verts[DT_OBSTACLE_CONVEX_MAX_PT * 3];
-	char name[MAX_PATH];
+	char obstName[MAX_PATH];
+	char cmd[32];
+	float param;
 	while (src < srcEnd)
 	{
 		row[0] = '\0';
 		src = parseRow(src, srcEnd, row, sizeof(row) / sizeof(char));
-		if (row[0] == 'a')
+		sscanf(row, "%s", cmd);
+		if (strcmp(cmd, "rd_agh") == 0)
+		{
+			sscanf(row, "%s %f", cmd, &param);
+			m_agentHeight = param;
+		}
+		else if (strcmp(cmd, "rd_agr") == 0)
+		{
+			sscanf(row, "%s %f", cmd, &param);
+			m_agentRadius = param;
+		}
+		else if (strcmp(cmd, "ae") == 0)
 		{
 			int area = 0;
 			int nverts = 0;
 			float hmin = 0;
 			float hmax = 0;
-			sscanf(row + 1, "%s %d %d %f %f", name, &area, &nverts, &hmin, &hmax);
+			sscanf(row, "%s %s %d %d %f %f", cmd, obstName, &area, &nverts, &hmin, &hmax);
 			for (int i = 0; i < nverts; ++i)
 			{
 				row[0] = '\0';
