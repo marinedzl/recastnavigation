@@ -892,6 +892,7 @@ Sample_TempObstacles::Sample_TempObstacles() :
 	m_cacheRawSize(0),
 	m_cacheLayerCount(0),
 	m_cacheBuildMemUsage(0),
+	m_navmeshMemUsage(0),
 	m_drawMode(DRAWMODE_NAVMESH),
 	m_maxTiles(0),
 	m_maxPolysPerTile(0),
@@ -973,6 +974,8 @@ void Sample_TempObstacles::handleSettings()
 	snprintf(msg, 64, "Navmesh Build Time  %.1f ms", m_cacheBuildTimeMs);
 	imguiValue(msg);
 	snprintf(msg, 64, "Build Peak Mem Usage  %.1f kB", m_cacheBuildMemUsage/1024.0f);
+	imguiValue(msg);
+	snprintf(msg, 64, "Navmesh Mem Usage  %.1f kB", m_navmeshMemUsage / 1024.0f);
 	imguiValue(msg);
 
 	imguiSeparator();
@@ -1422,14 +1425,14 @@ bool Sample_TempObstacles::handleBuild()
 	
 
 	const dtNavMesh* nav = m_navMesh;
-	int navmeshMemUsage = 0;
+	m_navmeshMemUsage = 0;
 	for (int i = 0; i < nav->getMaxTiles(); ++i)
 	{
 		const dtMeshTile* tile = nav->getTile(i);
 		if (tile->header)
-			navmeshMemUsage += tile->dataSize;
+			m_navmeshMemUsage += tile->dataSize;
 	}
-	printf("navmeshMemUsage = %.1f kB", navmeshMemUsage/1024.0f);
+	printf("navmeshMemUsage = %.1f kB", m_navmeshMemUsage /1024.0f);
 		
 	
 	if (m_tool)
@@ -1570,6 +1573,10 @@ void Sample_TempObstacles::loadAll(const char* path)
 		fclose(fp);
 		return;
 	}
+
+	m_cacheLayerCount = 0;
+	m_cacheCompressedSize = 0;
+	m_cacheRawSize = 0;
 		
 	// Read tiles.
 	for (int i = 0; i < header.numTiles; ++i)
@@ -1606,9 +1613,22 @@ void Sample_TempObstacles::loadAll(const char* path)
 
 		if (tile)
 			m_tileCache->buildNavMeshTile(tile, m_navMesh);
+
+		m_cacheLayerCount++;
+		m_cacheCompressedSize += tileHeader.dataSize;
+		m_cacheRawSize += calcLayerBufferSize(header.cacheParams.width, header.cacheParams.height);
 	}
 	
 	fclose(fp);
+
+	const dtNavMesh* nav = m_navMesh;
+	m_navmeshMemUsage = 0;
+	for (int i = 0; i < nav->getMaxTiles(); ++i)
+	{
+		const dtMeshTile* tile = nav->getTile(i);
+		if (tile->header)
+			m_navmeshMemUsage += tile->dataSize;
+	}
 }
 
 static char* parseRow(char* buf, char* bufEnd, char* row, int len)

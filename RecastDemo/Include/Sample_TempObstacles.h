@@ -41,6 +41,7 @@ protected:
 	int m_cacheRawSize;
 	int m_cacheLayerCount;
 	unsigned int m_cacheBuildMemUsage;
+	unsigned int m_navmeshMemUsage;
 	
 	enum DrawMode
 	{
