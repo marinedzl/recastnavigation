@@ -1577,6 +1577,9 @@ void Sample_TempObstacles::loadAll(const char* path)
 	m_cacheLayerCount = 0;
 	m_cacheCompressedSize = 0;
 	m_cacheRawSize = 0;
+
+	m_ctx->resetTimers();
+	m_ctx->startTimer(RC_TIMER_TOTAL);
 		
 	// Read tiles.
 	for (int i = 0; i < header.numTiles; ++i)
@@ -1618,8 +1621,10 @@ void Sample_TempObstacles::loadAll(const char* path)
 		m_cacheCompressedSize += tileHeader.dataSize;
 		m_cacheRawSize += calcLayerBufferSize(header.cacheParams.width, header.cacheParams.height);
 	}
-	
-	fclose(fp);
+
+	m_ctx->stopTimer(RC_TIMER_TOTAL);
+	m_cacheBuildTimeMs = m_ctx->getAccumulatedTime(RC_TIMER_TOTAL) / 1000.0f;
+	m_cacheBuildMemUsage = static_cast<unsigned int>(m_talloc->high);
 
 	const dtNavMesh* nav = m_navMesh;
 	m_navmeshMemUsage = 0;
@@ -1629,6 +1634,8 @@ void Sample_TempObstacles::loadAll(const char* path)
 		if (tile->header)
 			m_navmeshMemUsage += tile->dataSize;
 	}
+
+	fclose(fp);
 }
 
 static char* parseRow(char* buf, char* bufEnd, char* row, int len)
