@@ -111,6 +111,11 @@ static int calcLayerBufferSize(const int gridWidth, const int gridHeight)
 
 struct FastLZCompressor : public dtTileCacheCompressor
 {
+	void SetContext(BuildContext* ctx)
+	{
+		m_ctx = ctx;
+	}
+
 	virtual int maxCompressedSize(const int bufferSize)
 	{
 		return (int)(bufferSize* 1.05f);
@@ -126,9 +131,15 @@ struct FastLZCompressor : public dtTileCacheCompressor
 	virtual dtStatus decompress(const unsigned char* compressed, const int compressedSize,
 								unsigned char* buffer, const int maxBufferSize, int* bufferSize)
 	{
+		assert(m_ctx);
+		m_ctx->startTimerEx(RC_TIMER_EX_DECOMPRESS);
 		*bufferSize = fastlz_decompress(compressed, compressedSize, buffer, maxBufferSize);
+		m_ctx->stopTimerEx(RC_TIMER_EX_DECOMPRESS);
 		return *bufferSize < 0 ? DT_FAILURE : DT_SUCCESS;
 	}
+
+private:
+	BuildContext* m_ctx;
 };
 
 struct LinearAllocator : public dtTileCacheAlloc
@@ -286,7 +297,6 @@ int Sample_TempObstacles::rasterizeTileLayers(
 		return 0;
 	}
 	
-	FastLZCompressor comp;
 	RasterizationContext rc;
 	
 	const float* verts = m_geom->getMesh()->getVerts();
@@ -438,7 +448,7 @@ int Sample_TempObstacles::rasterizeTileLayers(
 		header.hmin = (unsigned short)layer->hmin;
 		header.hmax = (unsigned short)layer->hmax;
 
-		dtStatus status = dtBuildTileCacheLayer(&comp, &header, layer->heights, layer->areas, layer->cons,
+		dtStatus status = dtBuildTileCacheLayer(m_tcomp, &header, layer->heights, layer->areas, layer->cons,
 												&tile->data, &tile->dataSize);
 		if (dtStatusFailed(status))
 		{
@@ -893,6 +903,7 @@ Sample_TempObstacles::Sample_TempObstacles() :
 	m_cacheLayerCount(0),
 	m_cacheBuildMemUsage(0),
 	m_navmeshMemUsage(0),
+	m_decompressTimeMs(0),
 	m_drawMode(DRAWMODE_NAVMESH),
 	m_maxTiles(0),
 	m_maxPolysPerTile(0),
@@ -901,7 +912,7 @@ Sample_TempObstacles::Sample_TempObstacles() :
 	resetCommonSettings();
 	
 	m_talloc = new LinearAllocator(32000);
-	m_tcomp = new FastLZCompressor;
+	m_tcomp = new FastLZCompressor();
 	m_tmproc = new MeshProcess;
 	
 	setTool(new ConvexObstacleTool);
@@ -976,6 +987,8 @@ void Sample_TempObstacles::handleSettings()
 	snprintf(msg, 64, "Build Peak Mem Usage  %.1f kB", m_cacheBuildMemUsage/1024.0f);
 	imguiValue(msg);
 	snprintf(msg, 64, "Navmesh Mem Usage  %.1f kB", m_navmeshMemUsage / 1024.0f);
+	imguiValue(msg);
+	snprintf(msg, 64, "Decompress Time  %.1f ms", m_decompressTimeMs);
 	imguiValue(msg);
 
 	imguiSeparator();
@@ -1283,6 +1296,7 @@ bool Sample_TempObstacles::handleBuild()
 		return false;
 	}
 
+	m_tcomp->SetContext(m_ctx);
 	m_tmproc->init(m_geom);
 	
 	// Init cache
@@ -1578,6 +1592,7 @@ void Sample_TempObstacles::loadAll(const char* path)
 	m_cacheCompressedSize = 0;
 	m_cacheRawSize = 0;
 
+	m_tcomp->SetContext(m_ctx);
 	m_ctx->resetTimers();
 	m_ctx->startTimer(RC_TIMER_TOTAL);
 		
@@ -1625,6 +1640,8 @@ void Sample_TempObstacles::loadAll(const char* path)
 	m_ctx->stopTimer(RC_TIMER_TOTAL);
 	m_cacheBuildTimeMs = m_ctx->getAccumulatedTime(RC_TIMER_TOTAL) / 1000.0f;
 	m_cacheBuildMemUsage = static_cast<unsigned int>(m_talloc->high);
+
+	m_decompressTimeMs = m_ctx->getAccumulatedTimeEx(RC_TIMER_EX_DECOMPRESS) / 1000.0f;
 
 	const dtNavMesh* nav = m_navMesh;
 	m_navmeshMemUsage = 0;

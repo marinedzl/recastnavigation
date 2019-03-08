@@ -56,7 +56,7 @@ void BuildContext::doLog(const rcLogCategory category, const char* msg, const in
 
 void BuildContext::doResetTimers()
 {
-	for (int i = 0; i < RC_MAX_TIMERS; ++i)
+	for (int i = 0; i < RC_TIMER_EX_MAX; ++i)
 		m_accTime[i] = -1;
 }
 

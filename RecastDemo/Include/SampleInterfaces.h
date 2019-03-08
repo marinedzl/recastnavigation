@@ -26,11 +26,17 @@
 
 // These are example implementations of various interfaces used in Recast and Detour.
 
+enum rcTimerLabelExtend
+{
+	RC_TIMER_EX_DECOMPRESS = RC_MAX_TIMERS,
+	RC_TIMER_EX_MAX,
+};
+
 /// Recast build context.
 class BuildContext : public rcContext
 {
-	TimeVal m_startTime[RC_MAX_TIMERS];
-	TimeVal m_accTime[RC_MAX_TIMERS];
+	TimeVal m_startTime[RC_TIMER_EX_MAX];
+	TimeVal m_accTime[RC_TIMER_EX_MAX];
 
 	static const int MAX_MESSAGES = 1000;
 	const char* m_messages[MAX_MESSAGES];
@@ -48,6 +54,10 @@ public:
 	int getLogCount() const;
 	/// Returns log message text.
 	const char* getLogText(const int i) const;
+
+	inline void startTimerEx(const rcTimerLabelExtend label) { startTimer((rcTimerLabel)label); }
+	inline void stopTimerEx(const rcTimerLabelExtend label) { stopTimer((rcTimerLabel)label); }
+	inline int getAccumulatedTimeEx(const rcTimerLabelExtend label) const { return getAccumulatedTime((rcTimerLabel)label); }
 	
 protected:	
 	/// Virtual functions for custom implementations.

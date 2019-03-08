@@ -42,6 +42,7 @@ protected:
 	int m_cacheLayerCount;
 	unsigned int m_cacheBuildMemUsage;
 	unsigned int m_navmeshMemUsage;
+	float m_decompressTimeMs;
 	
 	enum DrawMode
 	{
