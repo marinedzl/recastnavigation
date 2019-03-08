@@ -50,11 +50,23 @@
 #include "RecastAlloc.h"
 #include "RecastAssert.h"
 #include "fastlz.h"
+#include "lz4.h"
 
 #ifdef WIN32
 #	define snprintf _snprintf
 #endif
 
+#define CreateCompressor(comp) \
+	dtTileCacheCompressor* comp;\
+	FastLZCompressor compFastLZ(m_ctx);\
+	LZ4Compressor compLZ4(m_ctx);\
+	DummyCompressor compDummy(m_ctx);\
+	if (m_compressFunc == COMPRESSFUNC_FASTLZ)\
+		comp = &compFastLZ;\
+	else if (m_compressFunc == COMPRESSFUNC_LZ4)\
+		comp = &compLZ4;\
+	else\
+		comp = &compDummy
 
 // This value specifies how many layers (or "floors") each navmesh tile is expected to have.
 static const int EXPECTED_LAYERS_PER_TILE = 4;
@@ -106,14 +118,79 @@ static int calcLayerBufferSize(const int gridWidth, const int gridHeight)
 	return headerSize + gridSize*4;
 }
 
+struct DummyCompressor : public dtTileCacheCompressor
+{
+	DummyCompressor(BuildContext* ctx)
+		: m_ctx(ctx)
+	{
+	}
 
+	virtual int maxCompressedSize(const int bufferSize)
+	{
+		return bufferSize;
+	}
 
+	virtual dtStatus compress(const unsigned char* buffer, const int bufferSize,
+		unsigned char* compressed, const int, int* compressedSize)
+	{
+		memcpy(compressed, buffer, bufferSize);
+		*compressedSize = bufferSize;
+		return DT_SUCCESS;
+	}
+
+	virtual dtStatus decompress(const unsigned char* compressed, const int compressedSize,
+		unsigned char* buffer, const int maxBufferSize, int* bufferSize)
+	{
+		assert(m_ctx);
+		m_ctx->startTimerEx(RC_TIMER_EX_DECOMPRESS);
+		memcpy(buffer, compressed, compressedSize);
+		*bufferSize = compressedSize;
+		m_ctx->stopTimerEx(RC_TIMER_EX_DECOMPRESS);
+		return DT_SUCCESS;
+	}
+
+private:
+	BuildContext* m_ctx;
+};
+
+struct LZ4Compressor : public dtTileCacheCompressor
+{
+	LZ4Compressor(BuildContext* ctx)
+		: m_ctx(ctx)
+	{
+	}
+
+	virtual int maxCompressedSize(const int bufferSize)
+	{
+		return LZ4_compressBound(bufferSize);
+	}
+
+	virtual dtStatus compress(const unsigned char* buffer, const int bufferSize,
+		unsigned char* compressed, const int maxCompressedSize, int* compressedSize)
+	{
+		*compressedSize = LZ4_compress_default((const char *const)buffer, (char*)compressed, bufferSize, maxCompressedSize);
+		return DT_SUCCESS;
+	}
+
+	virtual dtStatus decompress(const unsigned char* compressed, const int compressedSize,
+		unsigned char* buffer, const int maxBufferSize, int* bufferSize)
+	{
+		assert(m_ctx);
+		m_ctx->startTimerEx(RC_TIMER_EX_DECOMPRESS);
+		*bufferSize = LZ4_decompress_safe((const char*)compressed, (char*)buffer, compressedSize, maxBufferSize);
+		m_ctx->stopTimerEx(RC_TIMER_EX_DECOMPRESS);
+		return *bufferSize < 0 ? DT_FAILURE : DT_SUCCESS;
+	}
+
+private:
+	BuildContext* m_ctx;
+};
 
 struct FastLZCompressor : public dtTileCacheCompressor
 {
-	void SetContext(BuildContext* ctx)
+	FastLZCompressor(BuildContext* ctx)
+		: m_ctx(ctx)
 	{
-		m_ctx = ctx;
 	}
 
 	virtual int maxCompressedSize(const int bufferSize)
@@ -286,6 +363,7 @@ struct RasterizationContext
 };
 
 int Sample_TempObstacles::rasterizeTileLayers(
+							   dtTileCacheCompressor* comp,
 							   const int tx, const int ty,
 							   const rcConfig& cfg,
 							   TileCacheData* tiles,
@@ -448,7 +526,7 @@ int Sample_TempObstacles::rasterizeTileLayers(
 		header.hmin = (unsigned short)layer->hmin;
 		header.hmax = (unsigned short)layer->hmax;
 
-		dtStatus status = dtBuildTileCacheLayer(m_tcomp, &header, layer->heights, layer->areas, layer->cons,
+		dtStatus status = dtBuildTileCacheLayer(comp, &header, layer->heights, layer->areas, layer->cons,
 												&tile->data, &tile->dataSize);
 		if (dtStatusFailed(status))
 		{
@@ -907,12 +985,12 @@ Sample_TempObstacles::Sample_TempObstacles() :
 	m_drawMode(DRAWMODE_NAVMESH),
 	m_maxTiles(0),
 	m_maxPolysPerTile(0),
-	m_tileSize(48)
+	m_tileSize(48),
+	m_compressFunc(COMPRESSFUNC_FASTLZ)
 {
 	resetCommonSettings();
 	
 	m_talloc = new LinearAllocator(32000);
-	m_tcomp = new FastLZCompressor();
 	m_tmproc = new MeshProcess;
 	
 	setTool(new ConvexObstacleTool);
@@ -934,6 +1012,17 @@ void Sample_TempObstacles::handleSettings()
 
 	imguiLabel("Tiling");
 	imguiSlider("TileSize", &m_tileSize, 16.0f, 128.0f, 8.0f);
+
+	imguiLabel("Compressor");
+
+	if (imguiCheck("None", m_compressFunc == COMPRESSFUNC_NONE))
+		m_compressFunc = COMPRESSFUNC_NONE;
+
+	if (imguiCheck("FastLZ", m_compressFunc == COMPRESSFUNC_FASTLZ))
+		m_compressFunc = COMPRESSFUNC_FASTLZ;
+
+	if (imguiCheck("LZ4", m_compressFunc == COMPRESSFUNC_LZ4))
+		m_compressFunc = COMPRESSFUNC_LZ4;
 	
 	int gridSize = 1;
 	if (m_geom)
@@ -988,7 +1077,7 @@ void Sample_TempObstacles::handleSettings()
 	imguiValue(msg);
 	snprintf(msg, 64, "Navmesh Mem Usage  %.1f kB", m_navmeshMemUsage / 1024.0f);
 	imguiValue(msg);
-	snprintf(msg, 64, "Decompress Time  %.1f ms", m_decompressTimeMs);
+	snprintf(msg, 64, "Decompress Time  %.3f ms", m_decompressTimeMs);
 	imguiValue(msg);
 
 	imguiSeparator();
@@ -1296,7 +1385,8 @@ bool Sample_TempObstacles::handleBuild()
 		return false;
 	}
 
-	m_tcomp->SetContext(m_ctx);
+	CreateCompressor(comp);
+
 	m_tmproc->init(m_geom);
 	
 	// Init cache
@@ -1354,7 +1444,7 @@ bool Sample_TempObstacles::handleBuild()
 		m_ctx->log(RC_LOG_ERROR, "buildTiledNavigation: Could not allocate tile cache.");
 		return false;
 	}
-	status = m_tileCache->init(&tcparams, m_talloc, m_tcomp, m_tmproc);
+	status = m_tileCache->init(&tcparams, m_talloc, comp, m_tmproc);
 	if (dtStatusFailed(status))
 	{
 		m_ctx->log(RC_LOG_ERROR, "buildTiledNavigation: Could not init tile cache.");
@@ -1407,7 +1497,7 @@ bool Sample_TempObstacles::handleBuild()
 		{
 			TileCacheData tiles[MAX_LAYERS];
 			memset(tiles, 0, sizeof(tiles));
-			int ntiles = rasterizeTileLayers(x, y, cfg, tiles, MAX_LAYERS);
+			int ntiles = rasterizeTileLayers(comp, x, y, cfg, tiles, MAX_LAYERS);
 
 			for (int i = 0; i < ntiles; ++i)
 			{
@@ -1436,6 +1526,8 @@ bool Sample_TempObstacles::handleBuild()
 	
 	m_cacheBuildTimeMs = m_ctx->getAccumulatedTime(RC_TIMER_TOTAL)/1000.0f;
 	m_cacheBuildMemUsage = static_cast<unsigned int>(m_talloc->high);
+
+	m_decompressTimeMs = m_ctx->getAccumulatedTimeEx(RC_TIMER_EX_DECOMPRESS) / 1000.0f;
 	
 
 	const dtNavMesh* nav = m_navMesh;
@@ -1541,6 +1633,8 @@ void Sample_TempObstacles::loadAll(const char* path)
 {
 	FILE* fp = fopen(path, "rb");
 	if (!fp) return;
+
+	CreateCompressor(comp);
 	
 	// Read header.
 	TileCacheSetHeader header;
@@ -1581,7 +1675,7 @@ void Sample_TempObstacles::loadAll(const char* path)
 		fclose(fp);
 		return;
 	}
-	status = m_tileCache->init(&header.cacheParams, m_talloc, m_tcomp, m_tmproc);
+	status = m_tileCache->init(&header.cacheParams, m_talloc, comp, m_tmproc);
 	if (dtStatusFailed(status))
 	{
 		fclose(fp);
@@ -1592,7 +1686,6 @@ void Sample_TempObstacles::loadAll(const char* path)
 	m_cacheCompressedSize = 0;
 	m_cacheRawSize = 0;
 
-	m_tcomp->SetContext(m_ctx);
 	m_ctx->resetTimers();
 	m_ctx->startTimer(RC_TIMER_TOTAL);
 		

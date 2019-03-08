@@ -31,7 +31,6 @@ protected:
 	bool m_keepInterResults;
 
 	struct LinearAllocator* m_talloc;
-	struct FastLZCompressor* m_tcomp;
 	struct MeshProcess* m_tmproc;
 
 	class dtTileCache* m_tileCache;
@@ -62,6 +61,15 @@ protected:
 	int m_maxTiles;
 	int m_maxPolysPerTile;
 	float m_tileSize;
+
+	enum CompressFunc
+	{
+		COMPRESSFUNC_NONE,
+		COMPRESSFUNC_FASTLZ,
+		COMPRESSFUNC_LZ4,
+	};
+
+	CompressFunc m_compressFunc;
 	
 public:
 	Sample_TempObstacles();
@@ -97,7 +105,7 @@ private:
 	Sample_TempObstacles(const Sample_TempObstacles&);
 	Sample_TempObstacles& operator=(const Sample_TempObstacles&);
 
-	int rasterizeTileLayers(const int tx, const int ty, const rcConfig& cfg, struct TileCacheData* tiles, const int maxTiles);
+	int rasterizeTileLayers(struct dtTileCacheCompressor* comp, const int tx, const int ty, const rcConfig& cfg, struct TileCacheData* tiles, const int maxTiles);
 };
 
 
