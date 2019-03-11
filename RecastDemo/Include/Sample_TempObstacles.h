@@ -99,6 +99,7 @@ public:
 
 private:
 	bool loadObst(const char* path);
+	void prepareCompressor();
 
 private:
 	// Explicitly disabled copy constructor and copy assignment operator.
