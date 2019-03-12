@@ -1079,9 +1079,6 @@ void Sample_TempObstacles::handleSettings()
 		snprintf(path, MAX_PATH, "Meshes/%s.cache", m_geom->GetFileName().c_str());
 		loadAll(path);
 		m_navQuery->init(m_navMesh, 2048);
-
-		snprintf(path, MAX_PATH, "Meshes/%s.obst", m_geom->GetFileName().c_str());
-		loadObst(path);
 	}
 
 	imguiUnindent();
@@ -1724,126 +1721,6 @@ void Sample_TempObstacles::loadAll(const char* path)
 	}
 
 	fclose(fp);
-}
-
-static char* parseRow(char* buf, char* bufEnd, char* row, int len)
-{
-	bool start = true;
-	bool done = false;
-	int n = 0;
-	while (!done && buf < bufEnd)
-	{
-		char c = *buf;
-		buf++;
-		// multirow
-		switch (c)
-		{
-		case '\n':
-			if (start) break;
-			done = true;
-			break;
-		case '\r':
-			break;
-		case '\t':
-		case ' ':
-			if (start) break;
-			// else falls through
-		default:
-			start = false;
-			row[n++] = c;
-			if (n >= len - 1)
-				done = true;
-			break;
-		}
-	}
-	row[n] = '\0';
-	return buf;
-}
-
-bool Sample_TempObstacles::loadObst(const char* path)
-{
-	char* buf = 0;
-	FILE* fp = fopen(path, "rb");
-	if (!fp)
-	{
-		return false;
-	}
-	if (fseek(fp, 0, SEEK_END) != 0)
-	{
-		fclose(fp);
-		return false;
-	}
-
-	long bufSize = ftell(fp);
-	if (bufSize < 0)
-	{
-		fclose(fp);
-		return false;
-	}
-	if (fseek(fp, 0, SEEK_SET) != 0)
-	{
-		fclose(fp);
-		return false;
-	}
-	buf = new char[bufSize];
-	if (!buf)
-	{
-		fclose(fp);
-		return false;
-	}
-	size_t readLen = fread(buf, bufSize, 1, fp);
-	fclose(fp);
-	if (readLen != 1)
-	{
-		delete[] buf;
-		return false;
-	}
-
-	char* src = buf;
-	char* srcEnd = buf + bufSize;
-	char row[512];
-	float point[3];
-	char obstName[MAX_PATH];
-	char cmd[32];
-	float param;
-	std::vector<float> verts;
-	while (src < srcEnd)
-	{
-		row[0] = '\0';
-		src = parseRow(src, srcEnd, row, sizeof(row) / sizeof(char));
-		sscanf(row, "%s", cmd);
-		if (strcmp(cmd, "rd_agh") == 0)
-		{
-			sscanf(row, "%s %f", cmd, &param);
-			m_agentHeight = param;
-		}
-		else if (strcmp(cmd, "rd_agr") == 0)
-		{
-			sscanf(row, "%s %f", cmd, &param);
-			m_agentRadius = param;
-		}
-		else if (strcmp(cmd, "ae") == 0)
-		{
-			int area = 0;
-			int nverts = 0;
-			float hmin = 0;
-			float hmax = 0;
-			sscanf(row, "%s %s %d %d %f %f", cmd, obstName, &area, &nverts, &hmin, &hmax);
-			verts.clear();
-			for (int i = 0; i < nverts; ++i)
-			{
-				row[0] = '\0';
-				src = parseRow(src, srcEnd, row, sizeof(row) / sizeof(char));
-				sscanf(row, "%f %f %f", &point[0], &point[1], &point[2]);
-				verts.push_back(point[0]);
-				verts.push_back(point[1]);
-				verts.push_back(point[2]);
-			}
-			m_tileCache->addConvexObstacle(&verts[0], nverts, hmin, hmax, 0);
-		}
-	}
-
-	return true;
 }
 
 void Sample_TempObstacles::prepareCompressor()

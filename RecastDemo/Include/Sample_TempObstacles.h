@@ -98,7 +98,6 @@ public:
 	void loadAll(const char* path);
 
 private:
-	bool loadObst(const char* path);
 	void prepareCompressor();
 
 private:
