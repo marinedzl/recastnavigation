@@ -969,7 +969,7 @@ Sample_TempObstacles::Sample_TempObstacles() :
 {
 	resetCommonSettings();
 	
-	m_talloc = new LinearAllocator(32000);
+	m_talloc = new LinearAllocator(32000 * 8);
 	m_tmproc = new MeshProcess;
 	
 	setTool(new ConvexObstacleTool);
