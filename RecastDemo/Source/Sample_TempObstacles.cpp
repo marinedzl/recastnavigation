@@ -1078,7 +1078,7 @@ void Sample_TempObstacles::handleSettings()
 		char path[MAX_PATH];
 		snprintf(path, MAX_PATH, "Meshes/%s.cache", m_geom->GetFileName().c_str());
 		loadAll(path);
-		m_navQuery->init(m_navMesh, 2048);
+		m_navQuery->init(m_navMesh, 12048);
 	}
 
 	imguiUnindent();
