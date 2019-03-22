@@ -96,6 +96,7 @@ public:
 
 	void saveAll(const char* path);
 	void loadAll(const char* path);
+	void loadDawnData(const char* path);
 
 private:
 	void prepareCompressor();

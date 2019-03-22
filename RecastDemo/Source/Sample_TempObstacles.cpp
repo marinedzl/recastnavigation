@@ -1077,7 +1077,8 @@ void Sample_TempObstacles::handleSettings()
 		dtFreeTileCache(m_tileCache);
 		char path[MAX_PATH];
 		snprintf(path, MAX_PATH, "Meshes/%s.cache", m_geom->GetFileName().c_str());
-		loadAll(path);
+		//loadAll(path);
+		loadDawnData(path);
 		m_navQuery->init(m_navMesh, 12048);
 	}
 
@@ -1703,6 +1704,144 @@ void Sample_TempObstacles::loadAll(const char* path)
 		m_cacheLayerCount++;
 		m_cacheCompressedSize += tileHeader.dataSize;
 		m_cacheRawSize += calcLayerBufferSize(header.cacheParams.width, header.cacheParams.height);
+	}
+
+	m_ctx->stopTimer(RC_TIMER_TOTAL);
+	m_cacheBuildTimeMs = m_ctx->getAccumulatedTime(RC_TIMER_TOTAL) / 1000.0f;
+	m_cacheBuildMemUsage = static_cast<unsigned int>(m_talloc->high);
+
+	m_decompressTimeMs = m_ctx->getAccumulatedTimeEx(RC_TIMER_EX_DECOMPRESS) / 1000.0f;
+
+	const dtNavMesh* nav = m_navMesh;
+	m_navmeshMemUsage = 0;
+	for (int i = 0; i < nav->getMaxTiles(); ++i)
+	{
+		const dtMeshTile* tile = nav->getTile(i);
+		if (tile->header)
+			m_navmeshMemUsage += tile->dataSize;
+	}
+
+	fclose(fp);
+}
+
+//160 bytes
+struct NavmeshFileHeader
+{
+	uint32_t FourCC;
+	uint32_t Version;
+
+	uint32_t TileCount;
+	uint32_t TileOffset;
+
+	dtNavMeshParams DetourParams;
+
+	dtTileCacheParams TileCacheParams;
+	uint32_t CacheLayerCount;
+	uint32_t CacheLayerOffsets;
+	uint8_t Reserved[64]; //Reserved 64 bytes
+};
+
+//12 bytes
+struct NavmeshTileDesc
+{
+	dtTileRef TileRef;
+	uint32_t DataSize;
+	uint32_t DataOffset;
+};
+
+//8 bytes
+struct NavmeshCacheLayerDesc
+{
+	uint32_t DataSize;
+	uint32_t DataOffset;
+};
+
+void Sample_TempObstacles::loadDawnData(const char* path)
+{
+	FILE* fp = fopen(path, "rb");
+	if (!fp) return;
+
+	// Read header.
+	NavmeshFileHeader header;
+	size_t headerReadReturnCode = fread(&header, sizeof(NavmeshFileHeader), 1, fp);
+	if (headerReadReturnCode != 1)
+	{
+		// Error or early EOF
+		fclose(fp);
+		return;
+	}
+
+	m_navMesh = dtAllocNavMesh();
+	if (!m_navMesh)
+	{
+		fclose(fp);
+		return;
+	}
+	dtStatus status = m_navMesh->init(&header.DetourParams);
+	if (dtStatusFailed(status))
+	{
+		fclose(fp);
+		return;
+	}
+
+	m_tileCache = dtAllocTileCache();
+	if (!m_tileCache)
+	{
+		fclose(fp);
+		return;
+	}
+	status = m_tileCache->init(&header.TileCacheParams, m_talloc, Compressor[m_compressFunc], m_tmproc);
+	if (dtStatusFailed(status))
+	{
+		fclose(fp);
+		return;
+	}
+
+	m_cacheLayerCount = 0;
+	m_cacheCompressedSize = 0;
+	m_cacheRawSize = 0;
+
+	m_ctx->resetTimers();
+	m_ctx->startTimer(RC_TIMER_TOTAL);
+
+	prepareCompressor();
+
+	// Read tiles.
+	std::vector<NavmeshCacheLayerDesc> cache_desc;
+	cache_desc.resize(header.CacheLayerCount);
+	fseek(fp, header.CacheLayerOffsets, SEEK_SET);
+	fread(&cache_desc[0], sizeof(NavmeshCacheLayerDesc), header.CacheLayerCount, fp);
+
+	for (int i = 0; i < (int)header.CacheLayerCount; ++i)
+	{
+		if (cache_desc[i].DataOffset < 1) {
+			continue;
+		}
+
+		unsigned char* data = (unsigned char*)dtAlloc(cache_desc[i].DataSize, DT_ALLOC_PERM);
+		if (!data) break;
+		memset(data, 0, cache_desc[i].DataSize);
+		fseek(fp, cache_desc[i].DataOffset, SEEK_SET);
+		size_t tileDataReadReturnCode = fread(data, cache_desc[i].DataSize, 1, fp);
+		if (tileDataReadReturnCode != 1)
+		{
+			// Error or early EOF
+			dtFree(data);
+			fclose(fp);
+			return;
+		}
+
+		dtCompressedTileRef tile = 0;
+		dtStatus addTileStatus = m_tileCache->addTile(data, cache_desc[i].DataSize, DT_COMPRESSEDTILE_FREE_DATA, &tile);
+		if (dtStatusFailed(addTileStatus))
+		{
+			dtFree(data);
+		}
+
+		if (tile)
+			m_tileCache->buildNavMeshTile(tile, m_navMesh);
+
+		m_cacheLayerCount++;
 	}
 
 	m_ctx->stopTimer(RC_TIMER_TOTAL);
