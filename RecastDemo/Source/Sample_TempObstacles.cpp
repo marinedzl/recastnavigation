@@ -972,7 +972,7 @@ Sample_TempObstacles::Sample_TempObstacles() :
 	m_talloc = new LinearAllocator(32000 * 8);
 	m_tmproc = new MeshProcess;
 	
-	setTool(new ConvexObstacleTool);
+	setTool(new NavMeshTesterTool());
 }
 
 Sample_TempObstacles::~Sample_TempObstacles()
