@@ -117,6 +117,15 @@ void dtFreeNavMeshQuery(dtNavMeshQuery* navmesh)
 	dtFree(navmesh);
 }
 
+static void calcTriNormal(const float* v0, const float* v1, const float* v2, float* norm)
+{
+	float e0[3], e1[3];
+	dtVsub(e0, v1, v0);
+	dtVsub(e1, v2, v0);
+	dtVcross(norm, e0, e1);
+	dtVnormalize(norm);
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////
 
 /// @class dtNavMeshQuery
@@ -511,7 +520,7 @@ dtStatus dtNavMeshQuery::findRandomPointAroundCircle(dtPolyRef startRef, const f
 ///
 /// See closestPointOnPolyBoundary() for a limited but faster option.
 ///
-dtStatus dtNavMeshQuery::closestPointOnPoly(dtPolyRef ref, const float* pos, float* closest, bool* posOverPoly) const
+dtStatus dtNavMeshQuery::closestPointOnPoly(dtPolyRef ref, const float* pos, float* closest, bool* posOverPoly, float* norm) const
 {
 	dtAssert(m_nav);
 	const dtMeshTile* tile = 0;
@@ -592,6 +601,9 @@ dtStatus dtNavMeshQuery::closestPointOnPoly(dtPolyRef ref, const float* pos, flo
 		if (dtClosestHeightPointTriangle(closest, v[0], v[1], v[2], h))
 		{
 			closest[1] = h;
+			if (norm)
+				calcTriNormal(v[0], v[1], v[2], norm);
+
 			break;
 		}
 	}
@@ -723,6 +735,7 @@ class dtFindNearestPolyQuery : public dtPolyQuery
 	float m_nearestDistanceSqr;
 	dtPolyRef m_nearestRef;
 	float m_nearestPoint[3];
+	float m_nearestNormal[3];
 
 public:
 	dtFindNearestPolyQuery(const dtNavMeshQuery* query, const float* center)
@@ -732,6 +745,7 @@ public:
 
 	dtPolyRef nearestRef() const { return m_nearestRef; }
 	const float* nearestPoint() const { return m_nearestPoint; }
+	const float* nearestNormal() const { return m_nearestNormal; }
 
 	void process(const dtMeshTile* tile, dtPoly** polys, dtPolyRef* refs, int count)
 	{
@@ -741,10 +755,11 @@ public:
 		{
 			dtPolyRef ref = refs[i];
 			float closestPtPoly[3];
+			float norm[3];
 			float diff[3];
 			bool posOverPoly = false;
 			float d;
-			m_query->closestPointOnPoly(ref, m_center, closestPtPoly, &posOverPoly);
+			m_query->closestPointOnPoly(ref, m_center, closestPtPoly, &posOverPoly, norm);
 
 			// If a point is directly over a polygon and closer than
 			// climb height, favor that instead of straight line nearest point.
@@ -762,6 +777,7 @@ public:
 			if (d < m_nearestDistanceSqr)
 			{
 				dtVcopy(m_nearestPoint, closestPtPoly);
+				dtVcopy(m_nearestNormal, norm);
 
 				m_nearestDistanceSqr = d;
 				m_nearestRef = ref;
@@ -778,7 +794,7 @@ public:
 ///
 dtStatus dtNavMeshQuery::findNearestPoly(const float* center, const float* halfExtents,
 										 const dtQueryFilter* filter,
-										 dtPolyRef* nearestRef, float* nearestPt) const
+										 dtPolyRef* nearestRef, float* nearestPt, float* norm) const
 {
 	dtAssert(m_nav);
 
@@ -798,6 +814,8 @@ dtStatus dtNavMeshQuery::findNearestPoly(const float* center, const float* halfE
 	// is valid.
 	if (nearestPt && *nearestRef)
 		dtVcopy(nearestPt, query.nearestPoint());
+	if (norm && *nearestRef)
+		dtVcopy(norm, query.nearestNormal());
 	
 	return DT_SUCCESS;
 }

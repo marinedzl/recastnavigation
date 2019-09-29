@@ -74,6 +74,8 @@ class NavMeshTesterTool : public SampleTool
 	
 	float m_spos[3];
 	float m_epos[3];
+	float m_snorm[3];
+	float m_enorm[3];
 	float m_hitPos[3];
 	float m_hitNormal[3];
 	bool m_hitResult;
@@ -107,7 +109,7 @@ public:
 	virtual void handleRenderOverlay(double* proj, double* model, int* view);
 
 	void recalc();
-	void drawAgent(const float* pos, float r, float h, float c, const unsigned int col);
+	void drawAgent(const float* pos, const float* norm, float r, float h, float c, const unsigned int col);
 };
 
 #endif // NAVMESHTESTERTOOL_H

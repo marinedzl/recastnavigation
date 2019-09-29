@@ -683,12 +683,12 @@ void NavMeshTesterTool::recalc()
 		return;
 	
 	if (m_sposSet)
-		m_navQuery->findNearestPoly(m_spos, m_polyPickExt, &m_filter, &m_startRef, 0);
+		m_navQuery->findNearestPoly(m_spos, m_polyPickExt, &m_filter, &m_startRef, 0, m_snorm);
 	else
 		m_startRef = 0;
 	
 	if (m_eposSet)
-		m_navQuery->findNearestPoly(m_epos, m_polyPickExt, &m_filter, &m_endRef, 0);
+		m_navQuery->findNearestPoly(m_epos, m_polyPickExt, &m_filter, &m_endRef, 0, m_enorm);
 	else
 		m_endRef = 0;
 	
@@ -1052,9 +1052,9 @@ void NavMeshTesterTool::handleRender()
 	
 	dd.depthMask(false);
 	if (m_sposSet)
-		drawAgent(m_spos, agentRadius, agentHeight, agentClimb, startCol);
+		drawAgent(m_spos, m_snorm, agentRadius, agentHeight, agentClimb, startCol);
 	if (m_eposSet)
-		drawAgent(m_epos, agentRadius, agentHeight, agentClimb, endCol);
+		drawAgent(m_epos, m_enorm, agentRadius, agentHeight, agentClimb, endCol);
 	dd.depthMask(true);
 	
 	if (!m_navMesh)
@@ -1395,7 +1395,7 @@ void NavMeshTesterTool::handleRenderOverlay(double* proj, double* model, int* vi
 	imguiDrawText(280, h-40, IMGUI_ALIGN_LEFT, "LMB+SHIFT: Set start location  LMB: Set end location", imguiRGBA(255,255,255,192));	
 }
 
-void NavMeshTesterTool::drawAgent(const float* pos, float r, float h, float c, const unsigned int col)
+void NavMeshTesterTool::drawAgent(const float* pos, const float* norm, float r, float h, float c, const unsigned int col)
 {
 	duDebugDraw& dd = m_sample->getDebugDraw();
 	
@@ -1414,6 +1414,9 @@ void NavMeshTesterTool::drawAgent(const float* pos, float r, float h, float c, c
 	dd.vertex(pos[0]+r/2, pos[1]+0.02f, pos[2], colb);
 	dd.vertex(pos[0], pos[1]+0.02f, pos[2]-r/2, colb);
 	dd.vertex(pos[0], pos[1]+0.02f, pos[2]+r/2, colb);
+	// draw normal
+	dd.vertex(pos[0], pos[1], pos[2], col);
+	dd.vertex(pos[0] + norm[0], pos[1] + norm[1], pos[2] + norm[2], col);
 	dd.end();
 	
 	dd.depthMask(true);
