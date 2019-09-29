@@ -118,6 +118,7 @@ project "RecastDemo"
 		"../RecastDemo/Include",
 		"../RecastDemo/Contrib",
 		"../RecastDemo/Contrib/fastlz",
+		"../RecastDemo/Contrib/lz4",
 		"../DebugUtils/Include",
 		"../Detour/Include",
 		"../DetourCrowd/Include",
@@ -128,7 +129,9 @@ project "RecastDemo"
 		"../RecastDemo/Include/*.h",
 		"../RecastDemo/Source/*.cpp",
 		"../RecastDemo/Contrib/fastlz/*.h",
-		"../RecastDemo/Contrib/fastlz/*.c"
+		"../RecastDemo/Contrib/fastlz/*.c",
+		"../RecastDemo/Contrib/lz4/*.h",
+		"../RecastDemo/Contrib/lz4/*.c"
 	}
 
 	-- project dependencies
